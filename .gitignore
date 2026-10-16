@@ -1,0 +1,14 @@
+# Nsight Compute reports
+*.ncu-rep
+
+# Build files
+build/
+*.exe
+*.obj
+
+# Visual Studio
+.vs/
+
+# OS files
+.DS_Store
+Thumbs.db
