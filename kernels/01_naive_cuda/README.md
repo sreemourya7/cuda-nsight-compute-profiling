@@ -74,3 +74,4 @@ The next kernel changes the thread mapping so neighboring warp lanes access neig
 Goal:
 
 > **Improve global-memory coalescing and reduce memory-pipeline stalls.**
+RTX 5090 Profiling results are being transferred from my worklog to here, come back again.
