@@ -135,6 +135,83 @@ ncu --kernel-name sgemm_smem --launch-count 1 --section SchedulerStats --section
 | GTX 1650 (Turing) | Profiled |
 | RTX 5090 (Blackwell) | Pending |
 
+## 10. Additional Profiling — 4096 × 4096
+
+**Profiling Commands**
+
+```cmd
+ncu --kernel-name sgemm_smem --launch-count 1 smem_gemm.exe 4096 1 0
+```
+
+```cmd
+ncu --kernel-name sgemm_smem --launch-count 1 --section SchedulerStats --section WarpStateStats --section MemoryWorkloadAnalysis smem_gemm.exe 4096 1 0
+```
+
+### GPU Speed of Light
+
+| Metric | Value |
+|---|---:|
+| Kernel Duration (profiled) | 420.64 ms |
+| Compute (SM) Throughput | 72.01% |
+| Memory Throughput | 72.01% |
+| L1/TEX Throughput | 85.40% |
+| L2 Throughput | 12.23% |
+| DRAM Throughput | 13.97% |
+| SM Frequency | 1.39 GHz |
+| DRAM Frequency | 5.00 GHz |
+
+### Launch Statistics & Occupancy
+
+| Metric | Value |
+|---|---:|
+| Matrix | 4096 × 4096 |
+| Grid | 128 × 128 |
+| Block | 32 × 32 (1024 threads) |
+| Registers / Thread | 44 |
+| Shared Memory / Block | 8.19 KB |
+| Waves / SM | 1170.29 |
+| Theoretical Occupancy | 100% |
+| Achieved Occupancy | 99.98% |
+| Active Warps / SM | 31.99 |
+
+### Scheduler Statistics
+
+| Metric | Value |
+|---|---:|
+| Active Warps / Scheduler | 8.00 |
+| Eligible Warps / Scheduler | 0.99 |
+| Issued Warps / Scheduler | 0.21 |
+| One or More Eligible | 20.51% |
+| No Eligible Warp | 79.49% |
+| Average Cycles / Warp Issue | ~4.9 |
+
+### Warp State Statistics
+
+| Metric | Value |
+|---|---:|
+| Warp Cycles / Issued Instruction | 38.99 |
+| Warp Cycles / Executed Instruction | 38.99 |
+| MIO Throttle | 23.8 cycles |
+| MIO Throttle / Issue Interval | 61.1% |
+| Average Active Threads / Warp | 32 |
+| Average Not Predicated Off Threads / Warp | 31.99 |
+
+### Memory Workload Analysis
+
+| Metric | Value |
+|---|---:|
+| Memory Throughput | 22.34 GB/s |
+| Mem Busy | 42.79% |
+| Max Bandwidth | 72.15% |
+| Mem Pipes Busy | 72.15% |
+| L1/TEX Hit Rate | 0.39% |
+| L2 Hit Rate | 46.30% |
+| L2 Sector Promotion Misses | 0% |
+| Local Memory Spilling Requests | 0 |
+| Shared Memory Spilling Requests | 0 |
+
+*Measurements collected from two Nsight Compute runs. The reported 420.64 ms is the profiled kernel duration, not the standalone benchmark median.*
+
 ---
 
 **Note:** Measurements were collected across two Nsight Compute profiling runs. Metrics are grouped by their original profiling sections.
