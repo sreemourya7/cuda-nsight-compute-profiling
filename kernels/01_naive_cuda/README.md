@@ -1,77 +1,112 @@
-# Kernel 01 — Nsight Compute Profiling
+# Kernel 01 — Naive CUDA SGEMM | Nsight Compute
 
-## Setup
+Raw NVIDIA Nsight Compute profiling measurements for the naive FP32 SGEMM kernel.
+
+**[Profiling Analysis & Explanation](https://github.com/sreemourya7/SGEMM-kernel-optimization-FP32/blob/main/experiments/01_naive_cuda/profiling.md)**
+
+## 1. Profiling Setup
 
 | Parameter | Value |
 |---|---|
 | GPU | NVIDIA GeForce GTX 1650 |
-| Matrix | `512 × 512` |
-| Block | `32 × 32` |
+| Architecture | Turing (SM 7.5) |
+| SM Count | 14 |
+| CUDA Toolkit | 13.1 |
+| Nsight Compute | 2025.4.1 |
 | Kernel | `sgemm_naive` |
-| Profiler | Nsight Compute 2025.4.1 |
+| Matrix Dimensions | M=N=K=512 |
+| Thread Block | 32 × 32 (1024 threads) |
+| Grid | 16 × 16 (256 blocks) |
+| Registers / Thread | 50 |
 
----
+## 2. Profiling Commands
 
-## Key Metrics
+**GPU Speed of Light & Occupancy**
+
+```bash
+ncu --kernel-name sgemm_naive --launch-count 1 naive_gemm.exe 512 1 0
+```
+
+**Scheduler, Warp State & Memory Analysis**
+
+```bash
+ncu --kernel-name sgemm_naive --launch-count 1 --section SchedulerStats --section WarpStateStats --section MemoryWorkloadAnalysis naive_gemm.exe 512 1 0
+```
+
+| Profiling Run | Replay Passes |
+|---|---:|
+| GPU Speed of Light / Occupancy | 9 |
+| Scheduler / Warp State / Memory | 11 |
+
+## 3. GPU Speed of Light
 
 | Metric | Value |
 |---|---:|
-| Compute Throughput | `5.86%` |
-| Memory Throughput | `48.32%` |
-| L1/TEX Throughput | `96.63%` |
-| DRAM Throughput | `0.76%` |
-| Achieved Occupancy | `98.28%` |
-| Active Warps / Scheduler | `7.86` |
-| Eligible Warps / Scheduler | `0.08` |
-| No Eligible Warp | `97.87%` |
+| Kernel Duration | 15.22 ms |
+| SM Throughput | 5.86% |
+| Memory Throughput | 48.32% |
+| L1/TEX Cache Throughput | 96.63% |
+| L2 Cache Throughput | 1.17% |
+| DRAM Throughput | 0.76% |
+| SM Frequency | ~1.35 GHz |
+| DRAM Frequency | ~5.99 GHz |
+
+## 4. Occupancy
+
+| Metric | Value |
+|---|---:|
+| Theoretical Occupancy | 100% |
+| Achieved Occupancy | 98.28% |
+| Theoretical Active Warps / SM | 32 |
+| Achieved Active Warps / SM | 31.45 |
+| Registers / Thread | 50 |
+| Block Limit — Registers | 1 |
+| Block Limit — Warps | 1 |
+| Waves / SM | 18.29 |
+
+## 5. Scheduler Statistics
+
+| Metric | Value |
+|---|---:|
+| Active Warps / Scheduler | 7.86 |
+| Eligible Warps / Scheduler | 0.08 |
+| Issued Warps / Scheduler | 0.02 |
+| One or More Eligible | 2.13% |
+| No Eligible Warp | 97.87% |
+| Average Cycles / Warp Issue | ~46.9 |
+
+## 6. Warp State Statistics
+
+| Metric | Value |
+|---|---:|
+| Warp Cycles / Issued Instruction | 369.19 |
+| Warp Cycles / Executed Instruction | 369.21 |
+| LG Throttle | ~353.8 cycles |
+| Average Active Threads / Warp | 32 |
+| Average Non-Predicated-Off Threads / Warp | ~31.92 |
+
+## 7. Memory Workload Analysis
+
+| Metric | Value |
+|---|---:|
+| L1/TEX Hit Rate | 99.21% |
+| L2 Hit Rate | 73.02% |
+| Reported Memory Throughput | 1.52 GB/s |
+| Mem Busy | 48.21% |
+| Max Bandwidth | 13.13% |
+| Mem Pipes Busy | 5.84% |
+| Local Memory Spilling Requests | 0 |
+| Shared Memory Spilling | 0 |
 
 ---
 
-## What Nsight Shows
+## Profiling Status
 
-The kernel has **very high occupancy (~98%)**, so lack of resident warps is not the problem.
+| GPU | Status |
+|---|---|
+| GTX 1650 (Turing) | Profiled |
+| RTX 5090 (Blackwell) | Pending |
 
-However, the schedulers almost never have a warp ready to issue:
+**Note:** Metrics are transcribed from two Nsight Compute profiling runs. Values are grouped by their original profiling sections; measurements from different runs should not be treated as a single simultaneous capture.
 
-```text
-Active warps / scheduler   ≈ 7.86
-Eligible warps / scheduler ≈ 0.08
-```
-
-Nsight reports that roughly **95.8% of the cycles between issued instructions are spent stalled on the local/global memory pipeline**.
-
-This matches the access pattern of the naive kernel:
-
-```text
-A: strided across warp lanes     (Bad) 
-B: broadcast-friendly            (Good)
-```
-
-So the kernel is not compute-bound. The load/store path is heavily stressed, leaving the CUDA cores underutilized.
-
----
-
-## Bottleneck
-
-```text
-High occupancy
-    ↓
-Many resident warps
-    ↓
-Almost none eligible
-    ↓
-Memory pipeline stalls
-    ↓
-Low compute utilization
-```
-
----
-
-## Next Optimization
-
-The next kernel changes the thread mapping so neighboring warp lanes access neighboring memory locations.
-
-Goal:
-
-> **Improve global-memory coalescing and reduce memory-pipeline stalls.**
-RTX 5090 Profiling results are being transferred from my worklog to here, come back again.
+For interpretations, bottleneck diagnosis, and optimization hypotheses, see the [Kernel 01 Profiling Analysis](https://github.com/sreemourya7/SGEMM-kernel-optimization-FP32/blob/main/experiments/01_naive_cuda/profiling.md).
