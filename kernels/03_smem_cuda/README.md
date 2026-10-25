@@ -214,6 +214,114 @@ ncu --kernel-name sgemm_smem --launch-count 1 --section SchedulerStats --section
 
 ---
 
+## 11. Instruction Counts — 512 x 512
+
+### Profiling command
+
+```cmd
+ncu --kernel-name sgemm_smem --launch-count 1 --metrics smsp__sass_inst_executed_op_shared_ld.sum,smsp__sass_inst_executed_op_shared_st.sum,smsp__sass_inst_executed_op_global_ld.sum,smsp__sass_inst_executed_op_global_st.sum smem_gemm.exe 512 1 0
+```
+
+### Executed SASS memory instructions
+
+| Nsight Compute metric | Value |
+|---|---:|
+| `smsp__sass_inst_executed_op_global_ld.sum` | 270,336 |
+| `smsp__sass_inst_executed_op_global_st.sum` | 8,192 |
+| `smsp__sass_inst_executed_op_shared_ld.sum` | 5,242,880 |
+| `smsp__sass_inst_executed_op_shared_st.sum` | 262,144 |
+
+Units: **executed warp-level SASS instructions**, not bytes or memory transactions.
+
+Program-reported result from this profiling session: **1.2071 ms**, **222.3738 GFLOP/s**, verification skipped. This is a profiler-run measurement, not the standalone benchmark median.
+
+## 12. SourceCounters — 512 x 512
+
+### Compilation with CUDA source-line information
+
+```cmd
+nvcc -O3 -std=c++17 -arch=sm_75 -lineinfo smem_gemm.cu -o smem_gemm.exe
+```
+
+### Collection command
+
+```cmd
+ncu --kernel-name sgemm_smem --launch-count 1 --section SourceCounters --import-source yes -o smem_source_512 smem_gemm.exe 512 1 0
+```
+
+- Profiling passes reported: **5**
+- Saved report: `smem_source_512.ncu-rep`
+- Program-reported result from this profiling session: **0.9173 ms**, **292.6429 GFLOP/s**, verification skipped.
+
+### CLI source/SASS report command
+
+```cmd
+ncu --import smem_source_512.ncu-rep --page source --print-source cuda,sass
+```
+
+This command reads the saved profiling report; it does not collect new GPU measurements.
+
+Full captured terminal output: [`reports/source_counters_512.txt`](reports/source_counters_512.txt).
+
+### Selected CUDA source-line counters
+
+| CUDA line | Source operation | Warp stall samples (all) | Warp stall samples (not issued) | MIO Throttle samples (all) | MIO Throttle samples (not issued) |
+|---|---|---:|---:|---:|---:|
+| 53 | Load A tile into shared memory | 1,225 | 986 | 2 | 2 |
+| 57 | Load B tile into shared memory | 905 | 627 | 4 | 4 |
+| 62 | First `__syncthreads()` | 18 | 14 | 5 | 5 |
+| **68** | **`tmp += As[ty][k] * Bs[k][tx];`** | **8,503** | **6,893** | **6,788** | **6,270** |
+| 72 | Second `__syncthreads()` | 118 | 66 | 104 | 66 |
+| 79 | Write result to C | 117 | 107 | 0 | 0 |
+
+SourceCounters values are **statistical warp samples**. They are not exact stalled-cycle totals. "All" and "not issued" are separate sampling views.
+
+### Source line 68: instruction and shared-memory counters
+
+CUDA source:
+
+```cpp
+tmp += As[ty][k] * Bs[k][tx];
+```
+
+| Source-level counter | Value |
+|---|---:|
+| Dynamically executed warp-level SASS instructions | 9,437,184 |
+| Shared-memory load SASS instructions in compiled source region (static) | 40 |
+| `LDS.U` instructions (32-bit loads; static) | 32 |
+| `LDS.U.128` instructions (128-bit loads; static) | 8 |
+| `FFMA` instructions (static) | 32 |
+| Shared-memory load instructions executed (dynamic, warp-level) | 5,242,880 |
+| `FFMA` instructions executed (dynamic, warp-level) | 4,194,304 |
+| L1 shared wavefronts | 6,291,456 |
+| L1 shared ideal wavefronts | 6,291,456 |
+| L1 shared excessive wavefronts | 0 |
+| Reported L1 shared N-way conflicts | 48 |
+
+### Source line 68: SASS instruction-class stall-sample breakdown
+
+| SASS instruction class | Static SASS instructions | All warp samples | Not-issued warp samples | MIO samples (all) | MIO samples (not issued) |
+|---|---:|---:|---:|---:|---:|
+| `LDS.U` / `LDS.U.128` | 40 | 8,237 | 6,799 | **6,788** | **6,270** |
+| `FFMA` | 32 | 266 | 94 | **0** | **0** |
+| **Combined (line 68)** | **72** | **8,503** | **6,893** | **6,788** | **6,270** |
+
+The SASS rows above are grouped from the captured `--page source` output. Source line mapping was available because the executable was compiled with `-lineinfo`.
+
+### Other recorded stall samples (source-level)
+
+| CUDA line | Long-scoreboard samples (all) | Long-scoreboard samples (not issued) | Notes |
+|---|---:|---:|---|
+| 53 (A tile load) | 956 | 870 | SourceCounters output |
+| 57 (B tile load) | 473 | 437 | SourceCounters output |
+
+The original unabridged output preserves all other SourceCounters columns and per-instruction entries.
+
+---
+
+**Collection note:** Speed-of-Light, scheduler, warp-state, memory-instruction, and SourceCounters values come from different profiler passes/sessions. Sampling counts and averaged cycle metrics should not be treated as interchangeable measurements. For interpretation and optimization hypotheses, see the SGEMM Kernel 03 `profiling.md` in the implementation repository.
+
+
 **Note:** Measurements were collected across two Nsight Compute profiling runs. Metrics are grouped by their original profiling sections.
 
 For interpretation, bottleneck investigation, and optimization hypotheses, see the [Kernel 03 Profiling Analysis](https://github.com/sreemourya7/SGEMM-kernel-optimization-FP32/blob/main/experiments/03_shared_memory_tiling/profiling.md).
